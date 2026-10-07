@@ -1,0 +1,23 @@
+name: todoapp-prod
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    ports:
+      - "8080:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_HTTP_PORTS: "8080"
+      ConnectionStrings__DefaultConnection: "Data Source=/data/app.db"
+      Jwt__Key: "${JWT_KEY:?Set JWT_KEY to a strong production signing key}"
+      Jwt__Issuer: "TodoApp.Api"
+      Jwt__Audience: "TodoApp.Client"
+      Jwt__ExpiryMinutes: "15"
+    volumes:
+      - sqlite_prod_data:/data
+    restart: unless-stopped
+
+volumes:
+  sqlite_prod_data:

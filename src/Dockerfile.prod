@@ -1,0 +1,14 @@
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+COPY TodoApp.Api/TodoApp.Api.csproj TodoApp.Api/
+RUN dotnet restore TodoApp.Api/TodoApp.Api.csproj
+COPY TodoApp.Api/ TodoApp.Api/
+RUN dotnet publish TodoApp.Api/TodoApp.Api.csproj -c Release --no-restore -o /out
+
+FROM mcr.microsoft.com/dotnet/aspnet:10.0
+WORKDIR /app
+RUN mkdir /data && chown app:app /data
+COPY --from=build /out/ .
+USER app
+EXPOSE 8080
+ENTRYPOINT ["dotnet", "TodoApp.Api.dll"]

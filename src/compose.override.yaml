@@ -1,0 +1,24 @@
+services:
+  api:
+    build:
+      dockerfile: Dockerfile.dev
+
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      DOTNET_USE_POLLING_FILE_WATCHER: "1"
+      DOTNET_WATCH_RESTART_ON_RUDE_EDIT: "1"
+
+    volumes:
+      - .:/app
+      - /app/TodoApp.Api/bin
+      - /app/TodoApp.Api/obj
+
+    command:
+      - dotnet
+      - watch
+      - run
+      - --project
+      - TodoApp.Api/TodoApp.Api.csproj
+      - --no-launch-profile
+      - --urls
+      - http://0.0.0.0:8080

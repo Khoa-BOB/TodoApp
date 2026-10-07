@@ -1,0 +1,10 @@
+FROM mcr.microsoft.com/dotnet/sdk:10.0
+
+WORKDIR /app
+
+EXPOSE 8080
+
+CMD [ "dotnet", "watch", "run", \
+    "--project", "TodoApp.Api/TodoApp.Api.csproj",\
+    "--no-launch-profile", \
+    "--urls", "http://0.0.0.0:8080"]

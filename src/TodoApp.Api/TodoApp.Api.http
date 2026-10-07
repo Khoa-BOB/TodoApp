@@ -1,6 +1,35 @@
-@TodoApp.Api_HostAddress = http://localhost:5128
+@baseUrl = http://localhost:8080
+# Replace with an existing user's GUID.
+@userId = 96b0b752-3066-449c-9c73-ac7bc2658831
 
-GET {{TodoApp.Api_HostAddress}}/weatherforecast/
-Accept: application/json
+### Get CSRF token before signing up or logging in (keep the response cookies)
+# @name csrf
+GET {{baseUrl}}/auth/csrf
 
-###
+### Sign up
+POST {{baseUrl}}/auth/signup
+Content-Type: application/json
+X-CSRF-TOKEN: {{csrf.response.body.$.csrfToken}}
+
+{"Name": "admin", "Email": "admin@memphis.edu", "Password": "ChangeMe123!"}
+
+### Login
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+X-CSRF-TOKEN: {{csrf.response.body.$.csrfToken}}
+
+{ "Email": "jdoe1@memphis.edu", "Password": "ChangeMe123!"}
+
+### Refresh CSRF token after login
+# @name authenticatedCsrf
+GET {{baseUrl}}/auth/csrf
+
+### Get your todos using the login cookie
+GET {{baseUrl}}/todos/
+
+### Get a user
+GET {{baseUrl}}/users/{{userId}}
+
+### Log out
+POST {{baseUrl}}/auth/logout
+X-CSRF-TOKEN: {{authenticatedCsrf.response.body.$.csrfToken}}

@@ -1,0 +1,21 @@
+# .NET build output
+[Bb]in/
+[Oo]bj/
+
+# Local SQLite databases
+*.db
+*.db-shm
+*.db-wal
+*.db-journal
+
+# Editor and OS files
+.vs/
+.idea/
+*.user
+*.suo
+.DS_Store
+
+# Local environment variables
+.env
+.env.*
+!.env.example
