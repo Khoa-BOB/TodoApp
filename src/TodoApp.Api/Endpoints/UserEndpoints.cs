@@ -10,6 +10,9 @@ public static class UserEndpoints
     {
         var users = app.MapGroup("/users").RequireAuthorization("AdminOnly");
 
+        users.MapGet("", async (UserService service, CancellationToken ct) =>
+            Results.Ok((await service.GetAllAsync(ct)).Select(AdminUserResponse.FromDomain)));
+
         users.MapGet("/{id:guid}", async (Guid id, UserService service, CancellationToken ct) =>
             await service.GetByIdAsync(id, ct) is { } user ? Results.Ok(UserResponse.FromDomain(user)) : Results.NotFound());
 

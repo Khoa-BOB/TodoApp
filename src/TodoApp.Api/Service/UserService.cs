@@ -35,6 +35,9 @@ public class UserService
     public Task<User?> GetByIdAsync(Guid id, CancellationToken ct = default)
         => _repository.GetByIdAsync(id, ct);
 
+    public Task<IReadOnlyList<User>> GetAllAsync(CancellationToken ct = default)
+        => _repository.GetAllAsync(ct);
+
     public Task<bool> ExistsAsync(Guid id, CancellationToken ct = default)
         => _repository.ExistsAsync(id, ct);
 }

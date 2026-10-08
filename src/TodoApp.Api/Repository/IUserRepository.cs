@@ -8,6 +8,8 @@ public interface IUserRepository
 
     Task<User?> GetByIdAsync(Guid id, CancellationToken ct = default);
 
+    Task<IReadOnlyList<User>> GetAllAsync(CancellationToken ct = default);
+
     Task<bool> ExistsAsync(Guid id, CancellationToken ct = default);
 
     Task<bool> EmailExistsAsync(string email, CancellationToken ct = default);

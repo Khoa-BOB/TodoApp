@@ -1,0 +1,51 @@
+@import "tailwindcss";
+
+@theme {
+  --color-blue: #234ed8;
+  --color-lime: #daef88;
+  --color-ink: #202b40;
+  --color-muted: #68758b;
+  --color-canvas: #f5f7fc;
+  --color-line: #e4e9f2;
+  --font-sans: "Avenir Next", Avenir, "Segoe UI", sans-serif;
+}
+
+@layer base {
+  body { margin: 0; color: var(--color-ink); }
+  button { cursor: pointer; }
+  button:disabled { cursor: wait; opacity: .5; }
+  button, input, textarea { transition: background-color .15s, border-color .15s; }
+  :focus-visible { outline: 3px solid #819cf4; outline-offset: 4px; }
+  input:focus-visible, textarea:focus-visible { outline-offset: 2px; }
+  progress { appearance: none; border: 0; border-radius: 10px; background: var(--color-line); overflow: hidden; }
+  progress::-webkit-progress-bar { background: var(--color-line); }
+  progress::-webkit-progress-value { background: var(--color-blue); border-radius: 10px; }
+  progress::-moz-progress-bar { background: var(--color-blue); }
+  dialog { margin: auto; }
+}
+
+@layer components {
+  .display { font-family: "Trebuchet MS", "Avenir Next", sans-serif; }
+  .primary { @apply flex items-center justify-center gap-2 rounded-xl bg-blue px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-blue/90; }
+  .secondary { @apply flex items-center justify-center gap-2 rounded-xl border border-line bg-white px-4 py-3 text-sm font-semibold text-ink hover:bg-canvas; }
+  .field-label { @apply block text-sm font-semibold text-ink; }
+  .field { @apply mt-2 block w-full rounded-xl border border-line bg-white px-4 py-3 text-sm font-normal text-ink placeholder:text-muted focus:border-blue; }
+  .icon-button { @apply rounded-lg p-2 text-muted hover:bg-canvas hover:text-blue; }
+}
+
+.auth-story::after {
+  content: "";
+  position: absolute;
+  width: 520px;
+  height: 520px;
+  right: -320px;
+  bottom: -170px;
+  border: 80px solid rgb(255 255 255 / .055);
+  border-radius: 50%;
+  pointer-events: none;
+}
+.preview-note { transform: rotate(-3deg); }
+input[type="search"]:focus-visible { outline: 3px solid #819cf4; outline-offset: 4px; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; scroll-behavior: auto !important; }
+}

@@ -2,6 +2,10 @@
 **/[Bb]in/
 **/[Oo]bj/
 
+# Frontend build output and host dependencies
+**/node_modules/
+**/dist/
+
 # Local SQLite databases
 **/*.db
 **/*.db-shm

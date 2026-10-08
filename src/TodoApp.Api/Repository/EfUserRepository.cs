@@ -28,6 +28,10 @@ public class EfUserRepository : IUserRepository
         );
     }
 
+    // ponytail: The demo loads all accounts; paginate the directory when it reaches hundreds of users.
+    public async Task<IReadOnlyList<User>> GetAllAsync(CancellationToken ct = default)
+        => await _context.Users.AsNoTracking().OrderBy(user => user.Name).ToListAsync(ct);
+
     public Task<bool> ExistsAsync(Guid id, CancellationToken ct = default)
         => _context.Users.AnyAsync(user => user.ID == id, ct);
 

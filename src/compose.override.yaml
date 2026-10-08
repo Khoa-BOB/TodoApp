@@ -22,3 +22,11 @@ services:
       - --no-launch-profile
       - --urls
       - http://0.0.0.0:8080
+
+  frontend:
+    environment:
+      CHOKIDAR_USEPOLLING: "true"
+    volumes:
+      - ./TodoApp.Web/src:/app/src
+      - ./TodoApp.Web/index.html:/app/index.html
+      - ./TodoApp.Web/vite.config.js:/app/vite.config.js

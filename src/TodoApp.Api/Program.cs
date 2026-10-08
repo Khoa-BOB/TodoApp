@@ -9,6 +9,7 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.IdentityModel.Tokens.Experimental;
 using TodoApp.Api.Auth;
 using TodoApp.Api.Endpoints;
+using TodoApp.Api.Models;
 using TodoApp.Api.Repository;
 using TodoApp.Api.Service;
 
@@ -110,7 +111,16 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
     // ponytail: EnsureCreated can't evolve the schema; switch to `dotnet ef migrations` once the model changes after data exists.
     using var scope = app.Services.CreateScope();
-    scope.ServiceProvider.GetRequiredService<TodoDbContext>().Database.EnsureCreated();
+    var db = scope.ServiceProvider.GetRequiredService<TodoDbContext>();
+    db.Database.EnsureCreated();
+    // The known demo password must never seed a production administrator.
+    if (!await db.Users.AnyAsync(user => user.Email == "admin@example.com"))
+    {
+        var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher<string>>();
+        db.Users.Add(new User("admin", "admin@example.com",
+            hasher.HashPassword("admin@example.com", "ChangeMe123!"), Role.Admin));
+        await db.SaveChangesAsync();
+    }
 }
 
 app.MapTodoEndpoints();

@@ -20,7 +20,7 @@ public class User
 
    private User() { } // EF Core
 
-   public User(string name, string email, string hashedPassword)
+   public User(string name, string email, string hashedPassword, Role role = Role.User)
    {
       ArgumentException.ThrowIfNullOrWhiteSpace(name);
       ArgumentException.ThrowIfNullOrWhiteSpace(email);
@@ -29,7 +29,7 @@ public class User
       Name = name.Trim();
       Email = email.Trim().ToLowerInvariant();
       HashedPassword = hashedPassword.Trim();
-      Role = Role.User;
+      Role = role;
       CreatedAt = DateTimeOffset.UtcNow;
    }
 }

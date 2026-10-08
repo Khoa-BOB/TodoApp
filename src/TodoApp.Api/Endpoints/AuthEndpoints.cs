@@ -1,4 +1,5 @@
 using System.Net.Mail;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Mvc;
@@ -16,6 +17,19 @@ public static class AuthEndpoints
     {
         var auth = app.MapGroup("/auth");
 
+        auth.MapGet("/me", async (ClaimsPrincipal caller, HttpContext http, UserService users, CancellationToken ct) =>
+        {
+            http.Response.Headers.CacheControl = "no-store";
+            if (!Guid.TryParse(caller.FindFirstValue(ClaimTypes.NameIdentifier), out var id))
+                return Results.Unauthorized();
+            var user = await users.GetByIdAsync(id, ct);
+            return user is null ? Results.Unauthorized() : Results.Ok(new
+            {
+                response = UserResponse.FromDomain(user),
+                role = caller.IsInRole("Admin") ? Role.Admin : Role.User
+            });
+        }).RequireAuthorization();
+
         auth.MapGet("/csrf", (HttpContext http, IAntiforgery antiforgery) =>
         {
             http.Response.Headers.CacheControl = "no-store";
@@ -31,7 +45,12 @@ public static class AuthEndpoints
             ITokenService issuer, 
             CancellationToken ct) =>
         {
-            var email = body.Email;
+            if (string.IsNullOrWhiteSpace(body.Email) || string.IsNullOrEmpty(body.Password))
+                return Results.Unauthorized();
+
+            var email = string.Equals(body.Email.Trim(), "admin", StringComparison.OrdinalIgnoreCase)
+                ? "admin@example.com"
+                : body.Email;
             var providedPassword = body.Password;
 
             var user = await users.GetByEmailAsync(email,ct);

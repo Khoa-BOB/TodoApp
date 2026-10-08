@@ -1,0 +1,133 @@
+"""Run against a development API and frontend; creates and removes a test task.
+
+Requires: pip install playwright && playwright install chromium
+Usage: python3 checks/workflow.py [http://127.0.0.1:5173]
+"""
+import sys
+import uuid
+from playwright.sync_api import sync_playwright, expect
+
+with sync_playwright() as p:
+    browser = p.chromium.launch(headless=True)
+    base_url = sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:5173"
+    page = browser.new_page(base_url=base_url, viewport={"width": 1440, "height": 1000})
+    errors = []
+    page.on("pageerror", lambda error: errors.append(str(error)))
+    page.goto(base_url)
+    page.wait_for_load_state("networkidle")
+    page.screenshot(path="/private/tmp/todo-signin.png", full_page=True)
+    assert page.request.get("/api/users").status == 401
+    assert page.request.get("/api/auth/me").status == 401
+    page.get_by_label("Email or username").fill("admin")
+    page.get_by_label("Password", exact=True).fill("ChangeMe123!")
+    page.get_by_role("button", name="Sign in", exact=True).click()
+    expect(page.get_by_role("heading", name="A little more done.")).to_be_visible()
+    expect(page.get_by_role("button", name="Admin site")).to_be_visible()
+    admin_profile = page.request.get("/api/auth/me")
+    assert admin_profile.json()["role"] == 2
+    assert "no-store" in admin_profile.headers["cache-control"]
+    directory = page.request.get("/api/users")
+    assert directory.status == 200
+    accounts = directory.json()
+    assert all(set(account) == {"id", "name", "email", "role", "createdAt"} for account in accounts)
+    admin_id = next(account["id"] for account in accounts if account["email"] == "admin@example.com")
+    page.get_by_role("button", name="Admin site").click()
+    expect(page.get_by_role("heading", name="User directory")).to_be_visible()
+    page.get_by_role("button", name="View tasks for admin (admin@example.com)", exact=True).click()
+    expect(page.get_by_role("heading", name="admin’s tasks")).to_be_visible()
+    page.screenshot(path="/private/tmp/todo-admin.png", full_page=True)
+    page.get_by_role("button", name="Back to my tasks").click()
+    expect(page.get_by_role("heading", name="A little more done.")).to_be_visible()
+    page.reload()
+    expect(page.get_by_role("button", name="Admin site")).to_be_visible()
+    page.get_by_role("button", name="Sign out", exact=True).click()
+    page.get_by_role("button", name="Create an account", exact=True).click()
+    page.get_by_label("Your name").fill("Alex Morgan")
+    email = f"web-check-{uuid.uuid4().hex}@example.com"
+    page.get_by_label("Email address").fill(email)
+    page.get_by_label("Password", exact=True).fill("Frontend-check-2026!")
+    page.get_by_role("button", name="Create account", exact=True).click()
+    expect(page.get_by_role("heading", name="A little more done.")).to_be_visible()
+    expect(page.get_by_role("heading", name="A clear space. A fresh start.")).to_be_visible()
+    expect(page.get_by_role("button", name="Admin site")).to_have_count(0)
+    assert page.request.get("/api/auth/me").json()["role"] == 1
+    assert page.request.get("/api/users").status == 403
+    assert page.request.get(f"/api/users/{admin_id}/todos").status == 403
+    page.evaluate("sessionStorage.setItem('todo-user', JSON.stringify({name:'admin',email:'admin@example.com',role:2}))")
+    page.reload()
+    expect(page.get_by_role("heading", name="A clear space. A fresh start.")).to_be_visible()
+    expect(page.get_by_role("button", name="Admin site")).to_have_count(0)
+
+    page.get_by_role("button", name="Add task", exact=True).click()
+    page.get_by_label("Task title").fill("Prepare the workflow demo")
+    page.get_by_label("Description").fill("Walk through sign-in, tasks, and progress.")
+    page.get_by_role("dialog").get_by_role("button", name="Add task", exact=True).click()
+    expect(page.get_by_role("heading", name="Prepare the workflow demo")).to_be_visible()
+    page.get_by_role("button", name="Edit Prepare the workflow demo", exact=True).click()
+    page.get_by_label("Task title").fill("Present the workflow demo")
+    page.get_by_role("button", name="Save changes").click()
+    expect(page.get_by_role("heading", name="Present the workflow demo")).to_be_visible()
+    page.get_by_role("button", name="Complete Present the workflow demo", exact=True).click()
+    expect(page.get_by_role("button", name="Reopen Present the workflow demo")).to_have_attribute("aria-pressed", "true")
+    admin_page = browser.new_page(viewport={"width": 1440, "height": 1000})
+    admin_page.goto(page.url)
+    admin_page.get_by_label("Email or username").fill("admin")
+    admin_page.get_by_label("Password", exact=True).fill("ChangeMe123!")
+    admin_page.get_by_role("button", name="Sign in", exact=True).click()
+    admin_page.get_by_role("button", name="Admin site").click()
+    admin_page.get_by_label("Search users").fill(email)
+    admin_page.get_by_role("button", name=f"View tasks for Alex Morgan ({email})", exact=True).click()
+    expect(admin_page.get_by_role("heading", name="Present the workflow demo")).to_be_visible()
+    expect(admin_page.get_by_role("button", name="Complete Present the workflow demo")).to_have_count(0)
+    admin_page.screenshot(path="/private/tmp/todo-admin.png", full_page=True)
+    admin_page.set_viewport_size({"width": 390, "height": 844})
+    admin_page.screenshot(path="/private/tmp/todo-admin-mobile.png", full_page=True)
+    assert admin_page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "Admin mobile overflow"
+    admin_page.close()
+    page.get_by_role("button", name="Active", exact=False).click()
+    expect(page.get_by_role("heading", name="Present the workflow demo")).not_to_be_visible()
+    page.get_by_role("button", name="Completed", exact=False).click()
+    expect(page.get_by_role("heading", name="Present the workflow demo")).to_be_visible()
+    page.get_by_label("Search tasks").fill("no-match")
+    expect(page.get_by_role("heading", name="No matching tasks")).to_be_visible()
+    page.get_by_label("Search tasks").fill("")
+    page.reload()
+    expect(page.get_by_role("heading", name="Present the workflow demo")).to_be_visible()
+    page.screenshot(path="/private/tmp/todo-workspace.png", full_page=True)
+    page.set_viewport_size({"width": 390, "height": 844})
+    page.screenshot(path="/private/tmp/todo-mobile.png", full_page=True)
+    assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "Mobile overflow"
+    page.get_by_role("button", name="Reopen Present the workflow demo").click()
+    expect(page.get_by_role("button", name="Complete Present the workflow demo")).to_have_attribute("aria-pressed", "false")
+    page.get_by_role("button", name="Add task", exact=True).click()
+    page.keyboard.press("Escape")
+    expect(page.get_by_role("dialog")).not_to_be_visible()
+    page.once("dialog", lambda dialog: dialog.dismiss())
+    page.get_by_role("button", name="Delete Present the workflow demo").click()
+    expect(page.get_by_role("heading", name="Present the workflow demo")).to_be_visible()
+    page.once("dialog", lambda dialog: dialog.accept())
+    page.get_by_role("button", name="Delete Present the workflow demo").click()
+    expect(page.get_by_role("heading", name="Present the workflow demo")).not_to_be_visible()
+    page.get_by_role("button", name="Sign out", exact=True).click()
+    expect(page.get_by_role("heading", name="Welcome back.")).to_be_visible()
+    page.get_by_label("Email or username").fill("missing@example.com")
+    page.get_by_label("Password", exact=True).fill("wrong-password")
+    page.get_by_role("button", name="Sign in", exact=True).click()
+    expect(page.get_by_role("alert")).to_have_text("Email or password is incorrect.")
+    page.get_by_label("Email or username").fill(email)
+    page.get_by_label("Password", exact=True).fill("Frontend-check-2026!")
+    page.get_by_role("button", name="Sign in", exact=True).click()
+    expect(page.get_by_role("heading", name="A clear space. A fresh start.")).to_be_visible()
+    page.route("**/api/todos/", lambda route: route.fulfill(status=503))
+    page.reload()
+    expect(page.get_by_role("button", name="Try again")).to_be_visible()
+    page.unroute("**/api/todos/")
+    page.get_by_role("button", name="Try again").click()
+    expect(page.get_by_role("heading", name="A clear space. A fresh start.")).to_be_visible()
+    page.route("**/api/todos/", lambda route: route.fulfill(status=401))
+    page.reload()
+    expect(page.get_by_role("heading", name="Welcome back.")).to_be_visible()
+    expect(page.get_by_role("alert")).to_have_text("Your session has expired. Please sign in again.")
+    assert not errors, errors
+    browser.close()
+    print("PASS: admin switch, directory, user tasks, anonymous/user denial, tampered role rejection, session restore, mobile, and personal task workflow")
