@@ -19,3 +19,13 @@
 .env
 .env.*
 !.env.example
+
+# OpenTofu local state, plans, and project-specific values
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+crash.log

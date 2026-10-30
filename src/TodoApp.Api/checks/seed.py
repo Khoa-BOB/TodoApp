@@ -90,10 +90,15 @@ with tempfile.TemporaryDirectory(prefix="todo-seed-check-") as temp:
     with server(database, "Development"):
         with sqlite3.connect(database) as db:
             assert db.execute("SELECT ID, HashedPassword FROM Users").fetchall() == [original], "Restart must not duplicate or reset the seed"
-    with sqlite3.connect(database) as db:
-        db.execute("DELETE FROM Users")
-    with server(database, "Production"):
-        with sqlite3.connect(database) as db:
-            assert db.execute("SELECT COUNT(*) FROM Users").fetchone()[0] == 0, "Production must not seed the demo account"
+    production_database = Path(temp) / "production.db"
+    with server(production_database, "Production"):
+        with sqlite3.connect(production_database) as db:
+            assert db.execute("SELECT Email, HashedPassword, Role FROM Users").fetchall() == [], "Production must migrate a fresh database without seeding the demo account"
+            assert db.execute("SELECT COUNT(*) FROM Todos").fetchone()[0] == 0
+            db.execute("INSERT INTO Users (ID, Name, Email, CreatedAt, HashedPassword, Role) VALUES (?, ?, ?, ?, ?, ?)",
+                       (original[0], "Existing user", "existing@example.com", "2026-01-01 00:00:00+00:00", original[1], 1))
+    with server(production_database, "Production"):
+        with sqlite3.connect(production_database) as db:
+            assert db.execute("SELECT ID, HashedPassword FROM Users").fetchall() == [original], "Production restart must preserve existing data without seeding the demo account"
 
-print("PASS: admin username/email login, admin access, hashed password, invalid login, idempotent restart, no production seed")
+print("PASS: admin login/access, hashed password, invalid login, idempotent restart, fresh production migrations, production data preserved, no production seed")

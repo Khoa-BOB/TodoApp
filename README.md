@@ -63,6 +63,25 @@ API_URL=http://localhost:5128 npm run dev
 
 ## Build and verify
 
+### Frontend layout
+
+Frontend code lives in `src/TodoApp.Web/src`:
+
+- `App.jsx`: session restoration, shared task state, API actions, and view switching.
+- `Admin.jsx`: admin data loading and selected-account state.
+- `components/auth/AuthScreen.jsx`: sign-in and signup screen.
+- `components/Sidebar.jsx`: navigation, admin switch, and sign-out.
+- `components/tasks/`: task workspace, task rows, and create/edit dialog.
+- `components/admin/`: user directory and read-only user task panel.
+- `components/Brand.jsx` and `Icon.jsx`: shared visual components.
+- `api.js`: requests, cookie authentication, CSRF tokens, and API errors.
+- `styles.css`: Tailwind theme and shared styles.
+
+Components receive data and callbacks through props. Keep API actions in `App.jsx`
+or `Admin.jsx`; edit the relevant component to change its UI.
+
+### Checks
+
 ```sh
 cd src/TodoApp.Web
 npm run build

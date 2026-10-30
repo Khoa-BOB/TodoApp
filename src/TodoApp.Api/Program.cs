@@ -106,6 +106,14 @@ app.Use(async (http, next) =>
     await next(http);
 });
 
+if (!app.Environment.IsDevelopment())
+{
+    // shortcut: migrate at startup for one API instance; use a deployment job before scaling out.
+    using var scope = app.Services.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<TodoDbContext>();
+    await db.Database.MigrateAsync();
+}
+
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
