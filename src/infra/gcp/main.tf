@@ -25,6 +25,12 @@ variable "zone" {
   default     = "us-central1-a"
 }
 
+variable "github_repo" {
+  description = "GitHub repository (owner/name) allowed to deploy to the VM."
+  type        = string
+  default     = "Khoa-BOB/TodoApp"
+}
+
 provider "google" {
   project = var.project_id
   region  = var.region
@@ -32,7 +38,11 @@ provider "google" {
 }
 
 resource "google_project_service" "required" {
-  for_each           = toset(["compute.googleapis.com", "iam.googleapis.com", "iap.googleapis.com"])
+  for_each = toset([
+    "compute.googleapis.com", "iam.googleapis.com", "iap.googleapis.com",
+    # GitHub Actions login (Workload Identity Federation) and OS Login SSH.
+    "iamcredentials.googleapis.com", "sts.googleapis.com", "oslogin.googleapis.com",
+  ])
   service            = each.value
   disable_on_destroy = false
 }
@@ -122,6 +132,68 @@ resource "google_compute_instance" "todoapp" {
   }
 }
 
+# --- GitHub Actions deploy access ---------------------------------------------
+# GitHub proves its identity to GCP with a short-lived OIDC token, so no
+# service account key is ever stored in GitHub. Only pushes to main of
+# var.github_repo can use it.
+resource "google_iam_workload_identity_pool" "github" {
+  workload_identity_pool_id = "github"
+  depends_on                = [google_project_service.required["iam.googleapis.com"]]
+}
+
+resource "google_iam_workload_identity_pool_provider" "github" {
+  workload_identity_pool_id          = google_iam_workload_identity_pool.github.workload_identity_pool_id
+  workload_identity_pool_provider_id = "github"
+  attribute_mapping = {
+    "google.subject"       = "assertion.sub"
+    "attribute.repository" = "assertion.repository"
+  }
+  attribute_condition = "assertion.repository == '${var.github_repo}' && assertion.ref == 'refs/heads/main'"
+
+  oidc {
+    issuer_uri = "https://token.actions.githubusercontent.com"
+  }
+}
+
+resource "google_service_account" "deployer" {
+  account_id   = "todoapp-deployer"
+  display_name = "TodoApp GitHub deployer"
+  depends_on   = [google_project_service.required["iam.googleapis.com"]]
+}
+
+# Let the GitHub repository act as the deployer service account.
+resource "google_service_account_iam_member" "deployer_github" {
+  service_account_id = google_service_account.deployer.name
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}/attribute.repository/${var.github_repo}"
+}
+
+# What the deployer may do: look up the VM, tunnel SSH through IAP, and log in
+# with sudo (needed for docker). Same permissions the README lists for humans.
+resource "google_project_iam_member" "deployer_viewer" {
+  project = var.project_id
+  role    = "roles/compute.viewer"
+  member  = google_service_account.deployer.member
+}
+
+resource "google_compute_instance_iam_member" "deployer_login" {
+  instance_name = google_compute_instance.todoapp.name
+  role          = "roles/compute.osAdminLogin"
+  member        = google_service_account.deployer.member
+}
+
+resource "google_iap_tunnel_instance_iam_member" "deployer_tunnel" {
+  instance = google_compute_instance.todoapp.name
+  role     = "roles/iap.tunnelResourceAccessor"
+  member   = google_service_account.deployer.member
+}
+
+resource "google_service_account_iam_member" "deployer_vm_sa" {
+  service_account_id = google_service_account.todoapp.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = google_service_account.deployer.member
+}
+
 output "public_ip" {
   description = "Point your domain's A record to this address."
   value       = google_compute_address.todoapp.address
@@ -129,4 +201,14 @@ output "public_ip" {
 
 output "ssh_command" {
   value = "gcloud compute ssh todoapp --project=${var.project_id} --zone=${var.zone} --tunnel-through-iap"
+}
+
+output "github_workload_identity_provider" {
+  description = "GitHub secret GCP_WORKLOAD_IDENTITY_PROVIDER."
+  value       = google_iam_workload_identity_pool_provider.github.name
+}
+
+output "github_service_account" {
+  description = "GitHub secret GCP_SERVICE_ACCOUNT."
+  value       = google_service_account.deployer.email
 }

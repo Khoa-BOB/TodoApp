@@ -91,3 +91,63 @@ jobs:
           # Reuse layers from previous runs so builds are faster.
           cache-from: type=gha,scope=${{ matrix.name }}
           cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+
+  # ---------------------------------------------------------------------------
+  # Job 3: tell the GCP VM to download the new images and restart the app.
+  # ---------------------------------------------------------------------------
+  deploy:
+    needs: docker                          # only after both images were pushed
+    if: github.event_name == 'push'        # never deploy from a pull request
+    runs-on: ubuntu-latest
+    concurrency: deploy                    # if two pushes land close together, deploy one at a time
+
+    # "id-token: write" lets this job ask GitHub for a short-lived login token,
+    # which GCP accepts instead of a password/key (Workload Identity Federation).
+    permissions:
+      contents: read
+      id-token: write
+
+    # Plain settings (not secrets) used by the gcloud commands below.
+    # Set them in GitHub: Settings -> Secrets and variables -> Actions -> Variables.
+    env:
+      CLOUDSDK_CORE_PROJECT: ${{ vars.GCP_PROJECT }}   # gcloud reads this as --project
+      CLOUDSDK_COMPUTE_ZONE: ${{ vars.GCP_ZONE }}      # gcloud reads this as --zone
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Log in to Google Cloud as the "todoapp-deployer" service account.
+      # Both values come from `tofu output` (see src/infra/gcp/README.md).
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      # Install the gcloud command-line tool.
+      - uses: google-github-actions/setup-gcloud@v2
+
+      # Copy the latest compose file to the VM. The VM has no public SSH port,
+      # so we go through Google's IAP tunnel. --quiet = don't ask questions,
+      # e.g. auto-create an SSH key the first time.
+      - name: Upload compose file
+        run: |
+          gcloud compute scp src/compose.prod.yaml todoapp:~/compose.prod.yaml \
+            --tunnel-through-iap --quiet
+
+      # Run commands on the VM:
+      #   1. move the compose file into the app folder (/opt/todoapp, where .env lives)
+      #   2. pull the new images from Docker Hub
+      #   3. recreate only the containers whose image changed
+      #   4. delete old images so the disk doesn't fill up
+      # "set -e" = stop at the first failing command, which makes this step fail.
+      - name: Deploy on VM
+        run: |
+          gcloud compute ssh todoapp --tunnel-through-iap --quiet --command '
+            set -e
+            sudo install -m 0644 ~/compose.prod.yaml /opt/todoapp/compose.prod.yaml
+            cd /opt/todoapp
+            sudo docker compose -f compose.prod.yaml pull
+            sudo docker compose -f compose.prod.yaml up -d --remove-orphans
+            sudo docker image prune -f
+            sudo docker compose -f compose.prod.yaml ps
+          '

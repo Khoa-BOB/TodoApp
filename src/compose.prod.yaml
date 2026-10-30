@@ -2,9 +2,8 @@ name: todoapp-prod
 
 services:
   api:
-    build:
-      context: .
-      dockerfile: Dockerfile.prod
+    # Built and pushed by GitHub Actions (.github/workflows/ci.yml).
+    image: "${DOCKERHUB_USERNAME:?Set DOCKERHUB_USERNAME}/todoapp-api:latest"
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_HTTP_PORTS: "8080"
@@ -20,9 +19,7 @@ services:
     restart: unless-stopped
 
   web:
-    build:
-      context: ./TodoApp.Web
-      dockerfile: Dockerfile.prod
+    image: "${DOCKERHUB_USERNAME:?Set DOCKERHUB_USERNAME}/todoapp-web:latest"
     environment:
       DOMAIN: "${DOMAIN:?Set DOMAIN to your public hostname}"
     ports:
